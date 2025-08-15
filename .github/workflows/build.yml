@@ -12,14 +12,8 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.9', '3.10', '3.11']
-        exclude:
-          # Reduziere Matrix für schnellere Builds
-          - os: macos-latest
-            python-version: '3.9'
-          - os: ubuntu-latest
-            python-version: '3.10'
+        os: [windows-latest]
+        python-version: ['3.11']
 
     runs-on: ${{ matrix.os }}
     
@@ -40,25 +34,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
           
-    - name: 🔧 Install System Dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb libgconf-2-4 libxss1 libxtst6 libxrandr2 libasound2 libpangocairo-1.0-0 libatk1.0-0 libcairo-gobject2 libgtk-3-0 libgdk-pixbuf2.0-0
-        # Chrome für Selenium
-        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-        
-    - name: 🔧 Install System Dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        # Chrome für Selenium
-        brew install --cask google-chrome
-        
     - name: 🔧 Install System Dependencies (Windows)
-      if: matrix.os == 'windows-latest'
       run: |
         # Chrome wird automatisch von webdriver-manager installiert
         echo "Chrome wird automatisch installiert"
@@ -70,8 +46,8 @@ jobs:
         
     - name: 📋 Create Requirements if missing
       run: |
-        if [ ! -f requirements.txt ]; then
-          cat > requirements.txt << EOF
+        if (!(Test-Path "requirements.txt")) {
+          @"
         selenium>=4.15.0
         webdriver-manager>=4.0.0
         pandas>=2.0.0
@@ -79,9 +55,9 @@ jobs:
         openpyxl>=3.1.0
         Pillow>=10.0.0
         tk>=0.1.0
-        EOF
-        fi
-      shell: bash
+        "@ | Out-File -FilePath "requirements.txt" -Encoding UTF8
+        }
+      shell: powershell
       
     - name: 🧪 Test Script Syntax
       run: |
@@ -124,7 +100,7 @@ jobs:
         pip install pyinstaller
         
         # Erstelle PyInstaller Spec-Datei
-        cat > interzero_automation.spec << EOF
+        @"
         # -*- mode: python ; coding: utf-8 -*-
         import sys
         import os
@@ -190,68 +166,51 @@ jobs:
             codesign_identity=None,
             entitlements_file=None,
         )
-        EOF
+        "@ | Out-File -FilePath "interzero_automation.spec" -Encoding UTF8
         
         # Build das Executable
         pyinstaller interzero_automation.spec --clean --noconfirm
         
-        # Platform-spezifische Anpassungen
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          EXECUTABLE="dist/InterzeroAutomation.exe"
-          ARTIFACT_NAME="InterzeroAutomation-Windows-${{ matrix.python-version }}"
-        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          EXECUTABLE="dist/InterzeroAutomation"
-          ARTIFACT_NAME="InterzeroAutomation-macOS-${{ matrix.python-version }}"
-        else
-          EXECUTABLE="dist/InterzeroAutomation"
-          ARTIFACT_NAME="InterzeroAutomation-Linux-${{ matrix.python-version }}"
-        fi
+        # Windows-spezifische Variablen setzen
+        $EXECUTABLE = "dist\InterzeroAutomation.exe"
+        $ARTIFACT_NAME = "InterzeroAutomation-Windows-${{ matrix.python-version }}"
         
-        echo "EXECUTABLE=$EXECUTABLE" >> $GITHUB_ENV
-        echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
-      shell: bash
+        echo "EXECUTABLE=$EXECUTABLE" >> $env:GITHUB_ENV
+        echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $env:GITHUB_ENV
+      shell: powershell
       
     - name: 📦 Create Distribution Package
       run: |
-        mkdir -p release
+        New-Item -ItemType Directory -Path "release" -Force
         
-        # Kopiere Executable
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          cp dist/InterzeroAutomation.exe release/
-        else
-          cp dist/InterzeroAutomation release/
-          chmod +x release/InterzeroAutomation
-        fi
+        # Kopiere Windows Executable
+        Copy-Item "dist\InterzeroAutomation.exe" "release\"
         
         # Kopiere capsolver_config.py EXTERN (nicht in EXE eingebettet)
-        cp capsolver_config.py release/
+        Copy-Item "capsolver_config.py" "release\"
         
         # Erstelle README für Distribution
-        cat > release/README.md << EOF
+        @"
         # 🤖 Interzero Automation
         
         ## Systemanforderungen
         
         - **Windows**: Windows 10/11 (64-bit)
-        - **macOS**: macOS 10.15+ (Catalina oder neuer)
-        - **Linux**: Ubuntu 18.04+ oder ähnlich
         
         ## Installation
         
-        1. Laden Sie das entsprechende Executable für Ihr System herunter
-        2. **WICHTIG**: Behalten Sie die \`capsolver_config.py\` im gleichen Ordner wie das Executable
-        3. Editieren Sie \`capsolver_config.py\` und tragen Sie Ihren CapSolver API-Key ein
+        1. Laden Sie das Windows Executable herunter
+        2. **WICHTIG**: Behalten Sie die `capsolver_config.py` im gleichen Ordner wie das Executable
+        3. Editieren Sie `capsolver_config.py` und tragen Sie Ihren CapSolver API-Key ein
         4. Platzieren Sie Ihre Excel und PDF-Dateien im gleichen Ordner
-        5. Starten Sie das Programm:
-           - **Windows**: Doppelklick auf \`InterzeroAutomation.exe\`
-           - **macOS/Linux**: \`./InterzeroAutomation\` im Terminal
+        5. Starten Sie das Programm: Doppelklick auf `InterzeroAutomation.exe`
         
         ## Konfiguration
         
-        **Editieren Sie \`capsolver_config.py\`:**
-        \`\`\`python
+        **Editieren Sie `capsolver_config.py`:**
+        ```python
         CAPSOLVER_API_KEY = "CAP-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        \`\`\`
+        ```
         
         ## Verwendung
         
@@ -272,30 +231,24 @@ jobs:
         - Python ${{ matrix.python-version }}
         - Selenium WebDriver
         - PyInstaller
-        - Platform: ${{ matrix.os }}
+        - Platform: Windows
         
-        Erstellt am: $(date)
-        EOF
+        Erstellt am: $(Get-Date)
+        "@ | Out-File -FilePath "release\README.md" -Encoding UTF8
         
         # Erstelle Beispiel-Konfiguration
-        cat > release/capsolver_config.py << EOF
+        @"
         # CapSolver API Konfiguration
         # Tragen Sie hier Ihren CapSolver API-Key ein
         CAPSOLVER_API_KEY = "CAP-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        EOF
-        
-      shell: bash
+        "@ | Out-File -FilePath "release\capsolver_config.py" -Encoding UTF8
+      shell: powershell
       
     - name: 🧪 Test Executable
       run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          echo "Windows Executable Test übersprungen (GUI erforderlich)"
-        else
-          echo "Teste Executable Import..."
-          # Teste nur grundlegende Imports ohne GUI
-          timeout 10s ./release/InterzeroAutomation --help || echo "Expected timeout für GUI-Test"
-        fi
-      shell: bash
+        Write-Host "Windows Executable Test übersprungen (GUI erforderlich)"
+        # Das Executable benötigt eine GUI-Umgebung für tkinter
+      shell: powershell
       
     - name: 📤 Upload Artifacts
       uses: actions/upload-artifact@v4
@@ -303,87 +256,3 @@ jobs:
         name: ${{ env.ARTIFACT_NAME }}
         path: release/
         retention-days: 30
-
-  # Release Job entfernt - nur Build und Artifacts
-        
-  docker:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: 📥 Checkout Code
-      uses: actions/checkout@v4
-      
-    - name: 🐳 Setup Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: 🔑 Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-      if: false  # Docker Push deaktiviert
-      
-    - name: 📋 Create Dockerfile
-      run: |
-        cat > Dockerfile << EOF
-        FROM python:3.11-slim
-        
-        # System-Dependencies für Chrome und GUI
-        RUN apt-get update && apt-get install -y \\
-            wget \\
-            gnupg \\
-            unzip \\
-            curl \\
-            xvfb \\
-            libgconf-2-4 \\
-            libxss1 \\
-            libxtst6 \\
-            libxrandr2 \\
-            libasound2 \\
-            libpangocairo-1.0-0 \\
-            libatk1.0-0 \\
-            libcairo-gobject2 \\
-            libgtk-3-0 \\
-            libgdk-pixbuf2.0-0 \\
-            && rm -rf /var/lib/apt/lists/*
-        
-        # Chrome installieren
-        RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \\
-            && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list' \\
-            && apt-get update \\
-            && apt-get install -y google-chrome-stable \\
-            && rm -rf /var/lib/apt/lists/*
-        
-        # Arbeitsverzeichnis
-        WORKDIR /app
-        
-        # Python Dependencies
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        
-        # App-Code
-        COPY . .
-        
-        # User für Sicherheit
-        RUN useradd -m -u 1000 automation && chown -R automation:automation /app
-        USER automation
-        
-        # Display für GUI
-        ENV DISPLAY=:99
-        
-        # Startscript
-        CMD ["sh", "-c", "Xvfb :99 -ac -screen 0 1280x1024x16 & python interzero_automation.py"]
-        EOF
-        
-    - name: 🏗️ Build and Push Docker Image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: false  # Deaktiviert da keine Docker Secrets verfügbar
-        tags: |
-          interzero-automation:latest
-          interzero-automation:${{ github.sha }}
-        platforms: linux/amd64,linux/arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
