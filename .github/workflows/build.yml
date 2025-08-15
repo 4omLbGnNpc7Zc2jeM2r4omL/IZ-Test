@@ -68,32 +68,34 @@ jobs:
         
     - name: 🧪 Test GUI Import
       run: |
+        $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
         python -c "
         try:
             import tkinter
-            print('✅ tkinter verfügbar')
+            print('[OK] tkinter verfügbar')
         except ImportError:
-            print('❌ tkinter nicht verfügbar')
+            print('[ERROR] tkinter nicht verfügbar')
         
         try:
             from file_selector_gui import select_files_gui
-            print('✅ GUI-Module importierbar')
+            print('[OK] GUI-Module importierbar')
         except ImportError as e:
-            print(f'❌ GUI-Import Fehler: {e}')
+            print(f'[ERROR] GUI-Import Fehler: {e}')
         
         try:
             import selenium
             from selenium import webdriver
-            print('✅ Selenium verfügbar')
+            print('[OK] Selenium verfügbar')
         except ImportError as e:
-            print(f'❌ Selenium-Import Fehler: {e}')
+            print(f'[ERROR] Selenium-Import Fehler: {e}')
         
         try:
             import pandas as pd
-            print('✅ Pandas verfügbar')
+            print('[OK] Pandas verfügbar')
         except ImportError as e:
-            print(f'❌ Pandas-Import Fehler: {e}')
+            print(f'[ERROR] Pandas-Import Fehler: {e}')
         "
+      shell: powershell
         
     - name: 🏗️ Build Executable with PyInstaller
       run: |
