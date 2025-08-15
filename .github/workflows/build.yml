@@ -139,8 +139,8 @@ jobs:
                 ('file_selector_gui.py', '.'),
                 ('excel_validator.py', '.'),
                 ('database.py', '.'),
-                ('capsolver_config.py', '.'),
                 ('requirements.txt', '.'),
+                # capsolver_config.py wird NICHT in die EXE eingebettet!
             ],
             hiddenimports=[
                 'tkinter',
@@ -223,6 +223,9 @@ jobs:
           chmod +x release/InterzeroAutomation
         fi
         
+        # Kopiere capsolver_config.py EXTERN (nicht in EXE eingebettet)
+        cp capsolver_config.py release/
+        
         # Erstelle README für Distribution
         cat > release/README.md << EOF
         # 🤖 Interzero Automation
@@ -236,10 +239,19 @@ jobs:
         ## Installation
         
         1. Laden Sie das entsprechende Executable für Ihr System herunter
-        2. Platzieren Sie Ihre Excel und PDF-Dateien im gleichen Ordner
-        3. Starten Sie das Programm:
+        2. **WICHTIG**: Behalten Sie die \`capsolver_config.py\` im gleichen Ordner wie das Executable
+        3. Editieren Sie \`capsolver_config.py\` und tragen Sie Ihren CapSolver API-Key ein
+        4. Platzieren Sie Ihre Excel und PDF-Dateien im gleichen Ordner
+        5. Starten Sie das Programm:
            - **Windows**: Doppelklick auf \`InterzeroAutomation.exe\`
            - **macOS/Linux**: \`./InterzeroAutomation\` im Terminal
+        
+        ## Konfiguration
+        
+        **Editieren Sie \`capsolver_config.py\`:**
+        \`\`\`python
+        CAPSOLVER_API_KEY = "CAP-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        \`\`\`
         
         ## Verwendung
         
