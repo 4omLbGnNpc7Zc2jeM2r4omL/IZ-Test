@@ -1,0 +1,138 @@
+# 🔒 IZ-Test .gitignore
+# Verhindert das Committing sensibler Daten
+
+# CapSolver API Keys - NIEMALS COMMITTEN!
+capsolver_config_real.py
+**/capsolver_config_real.py
+**/CAP-*.txt
+**/api_key*.txt
+
+# Datenbank-Dateien
+*.db
+*.sqlite
+*.sqlite3
+interzero_submissions.db
+interzero_automation.db
+
+# Browser-Sessions
+browser_session.pkl
+*.pkl
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+Screenshots/
+
+# Excel-/PDF-Dateien (können sensible Daten enthalten)
+*.xlsx
+*.xls
+*.pdf
+!example_*.xlsx
+!template_*.xlsx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Logs
+*.log
+logs/
+log_*.txt
+
+# Backup-Dateien
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Test-Dateien
+test_*.py
+*_test.py
+tests/
+testing/
+
+# Distributables
+release/
+releases/
+build/
+dist/

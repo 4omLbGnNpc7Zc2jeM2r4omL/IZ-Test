@@ -1,0 +1,21 @@
+# 🚀 INTERZERO AUTOMATION - FINALE DEPENDENCIES
+# ================================================
+
+# Core Automation
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# CapSolver API (optional)
+requests>=2.31.0
+
+# GUI Framework  
+# tkinter ist bereits in Python enthalten
+
+# Additional Excel Support
+xlsxwriter>=3.1.0
+
+# Development Dependencies (optional)
+pytest>=7.4.0
+black>=23.0.0

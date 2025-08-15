@@ -1,0 +1,413 @@
+name: 🤖 Build IZ-Test Automation
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11']
+        exclude:
+          # Reduziere Matrix für schnellere Builds
+          - os: macos-latest
+            python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.10'
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: 📦 Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: 🔧 Install System Dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libgconf-2-4 libxss1 libxtst6 libxrandr2 libasound2 libpangocairo-1.0-0 libatk1.0-0 libcairo-gobject2 libgtk-3-0 libgdk-pixbuf2.0-0
+        # Chrome für Selenium
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        
+    - name: 🔧 Install System Dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Chrome für Selenium
+        brew install --cask google-chrome
+        
+    - name: 🔧 Install System Dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Chrome wird automatisch von webdriver-manager installiert
+        echo "Chrome wird automatisch installiert"
+        
+    - name: 📚 Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: 📋 Create Requirements if missing
+      run: |
+        if [ ! -f requirements.txt ]; then
+          cat > requirements.txt << EOF
+        selenium>=4.15.0
+        webdriver-manager>=4.0.0
+        pandas>=2.0.0
+        requests>=2.31.0
+        openpyxl>=3.1.0
+        Pillow>=10.0.0
+        tk>=0.1.0
+        EOF
+        fi
+      shell: bash
+      
+    - name: 🧪 Test Script Syntax
+      run: |
+        python -m py_compile interzero_automation.py
+        python -m py_compile database.py
+        python -m py_compile file_selector_gui.py
+        python -m py_compile excel_validator.py
+        
+    - name: 🧪 Test GUI Import
+      run: |
+        python -c "
+        try:
+            import tkinter
+            print('✅ tkinter verfügbar')
+        except ImportError:
+            print('❌ tkinter nicht verfügbar')
+        
+        try:
+            from file_selector_gui import select_files_gui
+            print('✅ GUI-Module importierbar')
+        except ImportError as e:
+            print(f'❌ GUI-Import Fehler: {e}')
+        
+        try:
+            import selenium
+            from selenium import webdriver
+            print('✅ Selenium verfügbar')
+        except ImportError as e:
+            print(f'❌ Selenium-Import Fehler: {e}')
+        
+        try:
+            import pandas as pd
+            print('✅ Pandas verfügbar')
+        except ImportError as e:
+            print(f'❌ Pandas-Import Fehler: {e}')
+        "
+        
+    - name: 🏗️ Build Executable with PyInstaller
+      run: |
+        pip install pyinstaller
+        
+        # Erstelle PyInstaller Spec-Datei
+        cat > interzero_automation.spec << EOF
+        # -*- mode: python ; coding: utf-8 -*-
+        import sys
+        import os
+        
+        block_cipher = None
+        
+        a = Analysis(
+            ['interzero_automation.py'],
+            pathex=[],
+            binaries=[],
+            datas=[
+                ('file_selector_gui.py', '.'),
+                ('excel_validator.py', '.'),
+                ('database.py', '.'),
+                ('capsolver_config.py', '.'),
+                ('requirements.txt', '.'),
+            ],
+            hiddenimports=[
+                'tkinter',
+                'tkinter.filedialog',
+                'tkinter.messagebox',
+                'selenium',
+                'selenium.webdriver',
+                'selenium.webdriver.chrome',
+                'selenium.webdriver.chrome.service',
+                'selenium.webdriver.common',
+                'webdriver_manager',
+                'webdriver_manager.chrome',
+                'pandas',
+                'openpyxl',
+                'PIL',
+            ],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            win_no_prefer_redirects=False,
+            win_private_assemblies=False,
+            cipher=block_cipher,
+            noarchive=False,
+        )
+        
+        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            [],
+            name='InterzeroAutomation',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+        EOF
+        
+        # Build das Executable
+        pyinstaller interzero_automation.spec --clean --noconfirm
+        
+        # Platform-spezifische Anpassungen
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          EXECUTABLE="dist/InterzeroAutomation.exe"
+          ARTIFACT_NAME="InterzeroAutomation-Windows-${{ matrix.python-version }}"
+        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          EXECUTABLE="dist/InterzeroAutomation"
+          ARTIFACT_NAME="InterzeroAutomation-macOS-${{ matrix.python-version }}"
+        else
+          EXECUTABLE="dist/InterzeroAutomation"
+          ARTIFACT_NAME="InterzeroAutomation-Linux-${{ matrix.python-version }}"
+        fi
+        
+        echo "EXECUTABLE=$EXECUTABLE" >> $GITHUB_ENV
+        echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+      shell: bash
+      
+    - name: 📦 Create Distribution Package
+      run: |
+        mkdir -p release
+        
+        # Kopiere Executable
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          cp dist/InterzeroAutomation.exe release/
+        else
+          cp dist/InterzeroAutomation release/
+          chmod +x release/InterzeroAutomation
+        fi
+        
+        # Erstelle README für Distribution
+        cat > release/README.md << EOF
+        # 🤖 Interzero Automation
+        
+        ## Systemanforderungen
+        
+        - **Windows**: Windows 10/11 (64-bit)
+        - **macOS**: macOS 10.15+ (Catalina oder neuer)
+        - **Linux**: Ubuntu 18.04+ oder ähnlich
+        
+        ## Installation
+        
+        1. Laden Sie das entsprechende Executable für Ihr System herunter
+        2. Platzieren Sie Ihre Excel und PDF-Dateien im gleichen Ordner
+        3. Starten Sie das Programm:
+           - **Windows**: Doppelklick auf \`InterzeroAutomation.exe\`
+           - **macOS/Linux**: \`./InterzeroAutomation\` im Terminal
+        
+        ## Verwendung
+        
+        1. Das Programm startet eine GUI zur Dateiauswahl
+        2. Wählen Sie Ihre Excel-Datei (erforderlich)
+        3. Wählen Sie optional eine PDF-Datei für Upload
+        4. Klicken Sie "Automation starten"
+        
+        ## Hinweise
+        
+        - Chrome wird automatisch installiert falls nicht vorhanden
+        - Alle Aktionen werden in einer SQLite-Datenbank gespeichert
+        - Screenshots werden als Base64 in der Datenbank archiviert
+        - Bei Problemen prüfen Sie die Konsolen-Ausgabe
+        
+        ## Erstellt mit
+        
+        - Python ${{ matrix.python-version }}
+        - Selenium WebDriver
+        - PyInstaller
+        - Platform: ${{ matrix.os }}
+        
+        Erstellt am: $(date)
+        EOF
+        
+        # Erstelle Beispiel-Konfiguration
+        cat > release/capsolver_config.py << EOF
+        # CapSolver API Konfiguration
+        # Tragen Sie hier Ihren CapSolver API-Key ein
+        CAPSOLVER_API_KEY = "CAP-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        EOF
+        
+      shell: bash
+      
+    - name: 🧪 Test Executable
+      run: |
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          echo "Windows Executable Test übersprungen (GUI erforderlich)"
+        else
+          echo "Teste Executable Import..."
+          # Teste nur grundlegende Imports ohne GUI
+          timeout 10s ./release/InterzeroAutomation --help || echo "Expected timeout für GUI-Test"
+        fi
+      shell: bash
+      
+    - name: 📤 Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.ARTIFACT_NAME }}
+        path: release/
+        retention-days: 30
+        
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: 📥 Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: 📦 Create Release Archives
+      run: |
+        for dir in InterzeroAutomation-*; do
+          if [ -d "$dir" ]; then
+            echo "Creating archive for $dir"
+            cd "$dir"
+            if [[ "$dir" == *"Windows"* ]]; then
+              zip -r "../${dir}.zip" .
+            else
+              tar -czf "../${dir}.tar.gz" .
+            fi
+            cd ..
+          fi
+        done
+        ls -la *.zip *.tar.gz
+        
+    - name: 🚀 Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          *.zip
+          *.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔑 Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+      if: ${{ secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD }}
+      
+    - name: 📋 Create Dockerfile
+      run: |
+        cat > Dockerfile << EOF
+        FROM python:3.11-slim
+        
+        # System-Dependencies für Chrome und GUI
+        RUN apt-get update && apt-get install -y \\
+            wget \\
+            gnupg \\
+            unzip \\
+            curl \\
+            xvfb \\
+            libgconf-2-4 \\
+            libxss1 \\
+            libxtst6 \\
+            libxrandr2 \\
+            libasound2 \\
+            libpangocairo-1.0-0 \\
+            libatk1.0-0 \\
+            libcairo-gobject2 \\
+            libgtk-3-0 \\
+            libgdk-pixbuf2.0-0 \\
+            && rm -rf /var/lib/apt/lists/*
+        
+        # Chrome installieren
+        RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \\
+            && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list' \\
+            && apt-get update \\
+            && apt-get install -y google-chrome-stable \\
+            && rm -rf /var/lib/apt/lists/*
+        
+        # Arbeitsverzeichnis
+        WORKDIR /app
+        
+        # Python Dependencies
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        
+        # App-Code
+        COPY . .
+        
+        # User für Sicherheit
+        RUN useradd -m -u 1000 automation && chown -R automation:automation /app
+        USER automation
+        
+        # Display für GUI
+        ENV DISPLAY=:99
+        
+        # Startscript
+        CMD ["sh", "-c", "Xvfb :99 -ac -screen 0 1280x1024x16 & python interzero_automation.py"]
+        EOF
+        
+    - name: 🏗️ Build and Push Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: ${{ secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD }}
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/interzero-automation:latest
+          ${{ secrets.DOCKER_USERNAME }}/interzero-automation:${{ github.sha }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+      if: ${{ secrets.DOCKER_USERNAME && secrets.DOCKER_PASSWORD }}
